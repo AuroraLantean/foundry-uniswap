@@ -1,0 +1,17 @@
+lockfileVersion: '6.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+dependencies:
+  '@openzeppelin/contracts':
+    specifier: 3.4.1-solc-0.7
+    version: 3.4.1-solc-0.7
+
+packages:
+
+  /@openzeppelin/contracts@3.4.1-solc-0.7:
+    resolution: {integrity: sha512-mOFoETsis0ODEbvYOniritn3Mpj6L3aafmBDdJI3ZYJNyMo4pfZBmNBU/L881xbw7iGDc3l2jF+XeLUwoY6IRw==}
+    deprecated: This version was not properly published, use instead 3.4.1-solc-0.7-2
+    dev: false

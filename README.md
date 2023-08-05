@@ -29,7 +29,10 @@ Install Foundry according to doc: https://book.getfoundry.sh/getting-started/ins
 curl -L https://foundry.paradigm.xyz | bash
 ```
 
-To install dependencies used in this repo: `make install`
+Install PNPM:
+See instruction at https://pnpm.io/installation
+
+Install dependencies used in this repo: `make install`
 
 To clean then install: `make all`
 

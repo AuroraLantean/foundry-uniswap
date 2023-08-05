@@ -12,11 +12,10 @@ remove :; rm -rf .gitmodules && rm -rf .git/modules/* && rm -rf lib && touch .gi
 #&& git add . && git commit -m "modules"
 
 install :;
-	forge install Openzeppelin/openzeppelin-contracts
-	forge install OpenZeppelin/openzeppelin-contracts-upgradeable
 	forge install Uniswap/v3-periphery
 	forge install Uniswap/v3-core
 	forge install foundry-rs/forge-std
+	pnpm install
 #forge install smartcontractkit/chainlink-brownie-contracts && forge install rari-capital/solmate 
 
 # Update Dependencies
