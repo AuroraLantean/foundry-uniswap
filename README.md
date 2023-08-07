@@ -40,6 +40,12 @@ To build: `make build`
 https://book.getfoundry.sh/getting-started/installation
 To run test: `forge test --match-path test/Counter.t.sol -vv`
 
+## Fix dependency error:
+
+Rename `@uniswap/v3-core/library`: `TransferHelper` library to `TransferHelperCore`
+
+In `@openzeppelin/contracts/token/ERC721/ERCC721.sol`: change `_approve()` from `private` to `internal virtual`
+
 ## Environment Variables
 
 Implement the .env file and run `source .env` before you run any package.json script that requires environment variables.

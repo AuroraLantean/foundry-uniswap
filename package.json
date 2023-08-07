@@ -20,9 +20,9 @@
     "env": "echo run: 'source .env' && echo $SIGNER",
     "test": "forge test -vv",
     "erc20": "forge test -vvv --match-path test/ERC20Token.t.sol",
-    "uniswapSingleSwap": "forge test --fork-url $GOERLI_RPC_URL --match-path test/UniswapSingleSwap.t.sol -vvv",
+    "clientGoerli": "forge test --fork-url $GOERLI_RPC_URL --match-path test/ClientRemote.t.sol -vvv",
     "encodePriceSqrt": "run encodePriceSqrt.js",
-    "uniswapClientLocal": "forge test --match-path test/UniswapClientLocal.t.sol -vvvvv",
+    "clientLocal": "forge test --match-path test/UniswapClientLocal.t.sol -vvv",
     "tgoerli": "forge test --fork-url $GOERLI_RPC_URL --match-path test/UniswapClient.t.sol -vvv",
     "tmain": "forge test --fork-url $MAINNET_RPC_URL --match-path test/UniswapClient.t.sol -vvv",
     "deployGoerli": "forge script script/Counter.s.sol:CounterScript --fork-url $GOERLI_RPC_URL --broadcast --verify -vvvv",
@@ -31,7 +31,7 @@
     "setCount": "cast send $CONTRACT_ADDRESS 'setCount(uint256)' 327 --private-key $PRIVATE_KEY"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "3.4.1-solc-0.7-2",
+    "@openzeppelin/contracts": "3.4.2-solc-0.7",
     "@uniswap/lib": "4.0.1-alpha",
     "base64-sol": "^1.0.1",
     "bignumber.js": "^9.1.1",

@@ -15,15 +15,45 @@ import "forge-std/Script.sol";
 
 import "src/ERC20Token.sol";
 import "src/UniswapClient.sol";
+import "src/DeployedCtrtAddrs.sol";
+import "forge-std/console.sol";
 
 contract CounterScript is Script {
-    uint256 choice = 0;
+    address weth9Addr;
+    address usdtAddr;
+    address usdcAddr;
+    address wBTCAddr;
+    address daiAddr;
+    address uniAddr;
+    address linkAddr;
+    address factoryAddr;
+    address quoterAddr;
+    address routerAddr;
+    address nfPosMgrAddr;
+    address payable clientAddr;
+    DeployedCtrtAddrs deployedCtrtAddrs;
+
+    uint256 whichCtrt = 0;
     string url;
+    uint8 network = 0; //0 to deploy all UniswapV3, 1 Goerli, 2 Sepolia, 5 Main
 
-    address public factoryAddr = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address Weth9Addr = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6; //Goerli
+    function setUp() public {
+        if (network > 0) {
+            deployedCtrtAddrs = new DeployedCtrtAddrs();
+            address[] memory arr = deployedCtrtAddrs.getAddrs(network);
 
-    function setUp() public {}
+            weth9Addr = arr[0];
+            usdcAddr = arr[2];
+            uniAddr = arr[5];
+            factoryAddr = arr[7];
+            quoterAddr = arr[8];
+            routerAddr = arr[9];
+            nfPosMgrAddr = arr[10];
+            clientAddr = payable(arr[11]);
+        } else {
+            console.log("invalid network all UniswapV3");
+        }
+    }
 
     //default function to run in scripts
     function run() public {
@@ -35,12 +65,12 @@ contract CounterScript is Script {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(privateKey);
         //vm.broadcast();
-        console.log("choice:", choice);
-        if (choice == 0) {
-            new UniswapClient(factoryAddr, Weth9Addr);
-        } else if (choice == 1) {
+        console.log("whichCtrt:", whichCtrt);
+        if (whichCtrt == 0) {
+            new UniswapClient(factoryAddr, weth9Addr, routerAddr, quoterAddr);
+        } else if (whichCtrt == 1) {
             new ERC20Token("GoldCoin", "GOLC");
-        } else if (choice == 2) {}
+        } else if (whichCtrt == 2) {}
         vm.stopBroadcast();
     }
 }

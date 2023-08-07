@@ -12,8 +12,9 @@ import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3FlashCallback.sol";
 
 //https://docs.uniswap.org/contracts/v3/guides/swaps/multihop-swaps
-import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 import "@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol"; //getPoolKey, computeAddress
 import "@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol"; // verifyCallback
@@ -27,20 +28,24 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
     using LowGasSafeMathB for int256;
 
     address payable owner;
-    //https://docs.uniswap.org/contracts/v3/reference/deployments
-    address public factoryAddr = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    IUniswapV3Factory public immutable uniswapV3Factory = IUniswapV3Factory(factoryAddr);
+    //address public immutable factor;//inherited from PeripheryPaymentsB
+    //address public immutable routerAddr;
+    //address public immutable nfPosMgrAddr;
 
-    address quoterAddr = 0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6;
-    IQuoter public immutable quoter = IQuoter(quoterAddr);
-
-    address public routerAddr = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    ISwapRouter public immutable swapRouter = ISwapRouter(routerAddr);
+    IUniswapV3Factory public immutable uniswapV3Factory;
+    ISwapRouter public immutable router;
+    IQuoter public immutable quoter;
+    //INonfungiblePositionManager public immutable nfPosMgr;
 
     // msg.sender must approve this contract
-    constructor(address _factory, address _WETH9) PeripheryPaymentsB(_factory, _WETH9) {
+    constructor(address _factory, address _WETH9, address _routerAddr, address _quoterAddr)
+        PeripheryPaymentsB(_factory, _WETH9)
+    {
         owner = payable(msg.sender);
-        // passing in the swap router for simplicity. More advanced contracts will show how to inherit the swap router safely.
+        uniswapV3Factory = IUniswapV3Factory(_factory);
+        quoter = IQuoter(_quoterAddr);
+        router = ISwapRouter(_routerAddr);
+        //nfPosMgr = INonfungiblePositionManager(nfPosMgrAddr);
     }
 
     /// @notice Returns the pool address for a given pair of tokens and a fee, or address 0 if it does not exist
@@ -67,114 +72,6 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
     }
 
     //------------------==
-    function getPoolInfo(address poolAddr)
-        external
-        view
-        returns (
-            address poolFactoryAddr,
-            address token0Addr,
-            address token1Addr,
-            uint24 fee,
-            int24 tickSpacing,
-            uint128 maxLiquidityPerTick
-        )
-    {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        poolFactoryAddr = pool.factory();
-        token0Addr = pool.token0();
-        token1Addr = pool.token1();
-        fee = pool.fee();
-        tickSpacing = pool.tickSpacing();
-        maxLiquidityPerTick = pool.maxLiquidityPerTick();
-    }
-
-    function slot0(address poolAddr)
-        external
-        view
-        returns (
-            uint160 sqrtPriceX96,
-            int24 tick,
-            uint16 observationIndex,
-            uint16 observationCardinality,
-            uint16 observationCardinalityNext,
-            uint8 feeProtocol,
-            bool unlocked
-        )
-    {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        return pool.slot0();
-    }
-
-    function getPoolState(address poolAddr)
-        external
-        view
-        returns (
-            uint256 feeGrowthGlobal0X128,
-            uint256 feeGrowthGlobal1X128,
-            uint128 token0AmtOwed,
-            uint128 token1AmtOwed,
-            uint256 liquidity
-        )
-    {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
-        feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
-        (token0AmtOwed, token1AmtOwed) = pool.protocolFees();
-        liquidity = pool.liquidity();
-    }
-
-    function ticks(address poolAddr, int24 tick)
-        external
-        view
-        returns (
-            uint128 liquidityGross,
-            int128 liquidityNet,
-            uint256 feeGrowthOutside0X128,
-            uint256 feeGrowthOutside1X128,
-            int56 tickCumulativeOutside,
-            uint160 secondsPerLiquidityOutsideX128,
-            uint32 secondsOutside,
-            bool initialized
-        )
-    {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        return pool.ticks(tick);
-    }
-
-    function tickBitmap(address poolAddr, int16 wordPosition) external view returns (uint256) {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        return pool.tickBitmap(wordPosition);
-    }
-
-    function positions(address poolAddr, bytes32 key)
-        external
-        view
-        returns (
-            uint128 _liquidity,
-            uint256 feeGrowthInside0LastX128,
-            uint256 feeGrowthInside1LastX128,
-            uint128 tokensOwed0,
-            uint128 tokensOwed1
-        )
-    {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        return pool.positions(key);
-    }
-
-    function observations(address poolAddr, uint256 index)
-        external
-        view
-        returns (
-            uint32 blockTimestamp,
-            int56 tickCumulative,
-            uint160 secondsPerLiquidityCumulativeX128,
-            bool initialized
-        )
-    {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        return pool.observations(index);
-    }
-
     //sqrtPriceLimitX96 = 0
     function getPrice(address poolAddr, bool isToken0input, uint256 amtInWei, uint160 sqrtPriceLimitX96)
         external
@@ -191,6 +88,9 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
         }
     }
 
+    /**
+     * https://info.uniswap.org/#/
+     */
     function mintPool(
         address poolAddr,
         address recipient,
@@ -292,6 +192,7 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
         uint24 poolFee3;
     }
     //required by IUniswapV3FlashCallback
+
     function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external override {
         //here we should have received tokens from the pool
         FlashCallbackData memory decoded = abi.decode(data, (FlashCallbackData));
@@ -303,13 +204,13 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
         //require(msg.sender == address(pool), "Only Callback");
 
         //this client to approve
-        TransferHelperB.safeApprove(token0, address(swapRouter), decoded.amount0);
-        TransferHelperB.safeApprove(token1, address(swapRouter), decoded.amount1);
+        TransferHelperB.safeApprove(token0, address(router), decoded.amount0);
+        TransferHelperB.safeApprove(token1, address(router), decoded.amount1);
 
         uint256 amount1Owed = LowGasSafeMathB.add(decoded.amount1, fee1); //also minimum amount1 to borrow
         uint256 amount0Owed = LowGasSafeMathB.add(decoded.amount0, fee0); //also minimum amount0 to borrow
 
-        uint256 amountOut0 = swapRouter.exactInputSingle(
+        uint256 amountOut0 = router.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: token1,
                 tokenOut: token0,
@@ -322,7 +223,7 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
             })
         );
 
-        uint256 amountOut1 = swapRouter.exactInputSingle(
+        uint256 amountOut1 = router.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: token0,
                 tokenOut: token1,
@@ -356,12 +257,12 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
 
     //----------------------==
     function approveToken(address tokenAddr, address spender, uint256 _amount) external onlyOwner returns (bool) {
-        if (spender == address(0)) spender = routerAddr;
+        if (spender == address(0)) spender = address(router);
         return IERC20(tokenAddr).approve(spender, _amount);
     }
 
     function allowanceToken(address tokenAddr) public view returns (uint256) {
-        return IERC20(tokenAddr).allowance(address(this), routerAddr);
+        return IERC20(tokenAddr).allowance(address(this), address(router));
     }
 
     function getTokenBalc(address _tokenAddr) external view returns (uint256) {
