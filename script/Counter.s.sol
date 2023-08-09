@@ -33,9 +33,9 @@ contract CounterScript is Script {
     address payable clientAddr;
     DeployedCtrtAddrs deployedCtrtAddrs;
 
-    uint256 whichCtrt = 0;
+    uint256 whichCtrt = 0; //0 client, 1 ERC20
     string url;
-    uint8 network = 0; //0 to deploy all UniswapV3, 1 Goerli, 2 Sepolia, 5 Main
+    uint8 network = 1; //0 to deploy all UniswapV3, 1 Goerli, 2 Sepolia, 5 Main
 
     function setUp() public {
         if (network > 0) {
@@ -63,12 +63,16 @@ contract CounterScript is Script {
         console.log("url:", url);
 
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.rememberKey(privateKey);
+        console.log("deployer:", deployer);
         vm.startBroadcast(privateKey);
         //vm.broadcast();
         console.log("whichCtrt:", whichCtrt);
         if (whichCtrt == 0) {
-            new UniswapClient(factoryAddr, weth9Addr, routerAddr, quoterAddr);
+            console.log("deploy UniswapClient");
+            new UniswapClient(factoryAddr, weth9Addr, routerAddr, quoterAddr, nfPosMgrAddr);
         } else if (whichCtrt == 1) {
+            console.log("deploy ERC20");
             new ERC20Token("GoldCoin", "GOLC");
         } else if (whichCtrt == 2) {}
         vm.stopBroadcast();

@@ -66,6 +66,10 @@ PoolAddressesProviderAaveV3Sepolia=
 
 Run each package.json script via `npm run <script_name>` or `pnpm run <script_name>`
 
+To deploy UniswapV3 contracts and run tests: set `network` to 0, then run `pnpm run local`
+
+To run tests on already deployed contracts on Goerli network: set `network` to 1, then run `pnpm run goerli`
+
 ## Documentation
 
 https://book.getfoundry.sh/

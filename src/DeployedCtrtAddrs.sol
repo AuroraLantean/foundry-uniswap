@@ -4,25 +4,24 @@ pragma solidity >=0.7.6;
 import "forge-std/console.sol";
 
 /**
- * address weth9,
- *             address usdt,
- *             address usdc,
- *             address wBTC,
- *             address dai,
- *             address uni,
- *             address link,
- *             address factory,
- *             address quoter,
- *             address router,
- *             address nfPosMgr,
- *             address payable client
+ *             address weth9, [0]
+ *             address usdt, [1]
+ *             address usdc, [2]
+ *             address wBTC, [3]
+ *             address dai, [4]
+ *             address uni, [5]
+ *             address link, [6]
+ *             address factory, [7]
+ *             address quoter, [8]
+ *             address router, [9]
+ *             address nfPosMgr, [10]
+ *             address payable client, [11]
  */
 contract DeployedCtrtAddrs {
     function getAddrs(uint8 network) public view returns (address[] memory arr) {
         arr = new address[](12);
         if (network == 1) {
             console.log("network", network, " Goerli");
-
             arr[0] = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6;
             arr[1] = 0xC2C527C0CACF457746Bd31B2a698Fe89de2b6d49;
             arr[2] = 0x07865c6E87B9F70255377e024ace6630C1Eaa37F; //https://developers.circle.com/developer/docs/usdc-on-testnet
@@ -37,8 +36,8 @@ contract DeployedCtrtAddrs {
             arr[8] = 0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6;
             arr[9] = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
             arr[10] = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
-
-            arr[11] = payable(0x77b1b3cD6435B0f5a14eE49F2Cb3Af18a8189DF5);
+            arr[11] = payable(0x72a452eC001265AD711C60fe27F71e2Cd0ADCC39);
+            //Goerli
         } else if (network == 2) {
             console.log("network", network, " Sepolia");
         } else if (network == 5) {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.6;
 pragma abicoder v2;
-/*deployed at Goerli 0x77b1b3cD6435B0f5a14eE49F2Cb3Af18a8189DF5
+/*deployed at Goerli 0x72a452eC001265AD711C60fe27F71e2Cd0ADCC39
  */
 
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
@@ -23,121 +23,204 @@ import "src/TransferPayHelper.sol";
 import "src/LowGasSafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
+//According to https://docs.uniswap.org/contracts/v3/guides/providing-liquidity/setting-up
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+//import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
+import "@uniswap/v3-periphery/contracts/base/LiquidityManagement.sol";
+
+contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Receiver {
     using LowGasSafeMathB for uint256;
     using LowGasSafeMathB for int256;
 
     address payable owner;
-    //address public immutable factor;//inherited from PeripheryPaymentsB
-    //address public immutable routerAddr;
-    //address public immutable nfPosMgrAddr;
-
     IUniswapV3Factory public immutable uniswapV3Factory;
     ISwapRouter public immutable router;
     IQuoter public immutable quoter;
-    //INonfungiblePositionManager public immutable nfPosMgr;
+    INonfungiblePositionManager public immutable nfPosMgr;
+
+    struct DepositNFT {
+        address owner;
+        uint128 liquidity;
+        address token0;
+        address token1;
+    }
+
+    uint256 public lastNftDepositId;
+    mapping(uint256 => DepositNFT) public nftDeposits;
 
     // msg.sender must approve this contract
-    constructor(address _factory, address _WETH9, address _routerAddr, address _quoterAddr)
+    constructor(address _factory, address _WETH9, address _routerAddr, address _quoterAddr, address _nfPosMgrAddr)
         PeripheryPaymentsB(_factory, _WETH9)
     {
         owner = payable(msg.sender);
         uniswapV3Factory = IUniswapV3Factory(_factory);
         quoter = IQuoter(_quoterAddr);
         router = ISwapRouter(_routerAddr);
-        //nfPosMgr = INonfungiblePositionManager(nfPosMgrAddr);
+        nfPosMgr = INonfungiblePositionManager(_nfPosMgrAddr);
     }
 
-    /// @notice Returns the pool address for a given pair of tokens and a fee, or address 0 if it does not exist
-    /// @dev tokenA and tokenB may be passed in either token0/token1 or token1/token0 order
-    /// @param tokenA The contract address of either token0 or token1
-    /// @param tokenB The contract address of the other token
-    /// @param fee The fee collected upon every swap in the pool, denominated in hundredths of a bip:
-    /// @return pool The pool address
-    function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address) {
-        //Uniswap createPool UI, fee tier = 0.05%, 0.3%, 1% => 500, 3000, 10000 according to UniswapV3Factory.sol
-        return uniswapV3Factory.getPool(tokenA, tokenB, fee);
-    }
-
-    function getFeeAmountTickSpacing(uint24 fee) external view returns (int24) {
-        return uniswapV3Factory.feeAmountTickSpacing(fee);
-    }
-
-    function createPool(address tokenA, address tokenB, uint24 fee) external returns (address) {
-        return uniswapV3Factory.createPool(tokenA, tokenB, fee);
-    }
-
-    function enableFeeAmount(uint24 fee, int24 tickSpacing) external {
-        uniswapV3Factory.enableFeeAmount(fee, tickSpacing);
-    }
-
-    //------------------==
-    //sqrtPriceLimitX96 = 0
-    function getPrice(address poolAddr, bool isToken0input, uint256 amtInWei, uint160 sqrtPriceLimitX96)
+    function onERC721Received(address operator, address, uint256 tokenId, bytes calldata)
         external
-        returns (uint256 quotedAmt)
+        override
+        returns (bytes4)
     {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
+        _markDeposit(operator, tokenId);
+        return this.onERC721Received.selector;
+    }
 
-        if (isToken0input) {
-            quotedAmt =
-                quoter.quoteExactInputSingle(pool.token0(), pool.token1(), pool.fee(), amtInWei, sqrtPriceLimitX96);
-        } else {
-            quotedAmt =
-                quoter.quoteExactInputSingle(pool.token1(), pool.token0(), pool.fee(), amtInWei, sqrtPriceLimitX96);
+    // https://docs.uniswap.org/contracts/v3/guides/providing-liquidity/setting-up
+    function _markDeposit(address _owner, uint256 tokenId) internal {
+        (,, address token0, address token1,,,, uint128 liquidity,,,,) = nfPosMgr.positions(tokenId);
+        // set the owner and data for position
+        // operator is msg.sender
+        nftDeposits[tokenId] = DepositNFT({owner: _owner, liquidity: liquidity, token0: token0, token1: token1});
+        lastNftDepositId = tokenId;
+    }
+
+    // tokenId The id of the newly minted ERC721, liquidity The amount of liquidity for the position, amount0 The amount of token0, amount1 The amount of token1
+    function mintNewPosition(address token0, address token1, uint24 poolFee, uint256 amt0ToAdd, uint256 amt1ToAdd)
+        external
+        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+    {
+        TransferHelperB.safeTransferFrom(token0, msg.sender, address(this), amt0ToAdd);
+        TransferHelperB.safeTransferFrom(token1, msg.sender, address(this), amt1ToAdd);
+
+        //For given pool: token0/token1 = token0/token1
+        // Approve the position manager
+        TransferHelperB.safeApprove(token0, address(nfPosMgr), amt0ToAdd);
+        TransferHelperB.safeApprove(token1, address(nfPosMgr), amt1ToAdd);
+
+        // int24 private constant MIN_TICK = -887272;
+        // int24 private constant MAX_TICK = -MIN_TICK;
+        // int24 private constant TICK_SPACING = 60;
+        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
+            token0: token0,
+            token1: token1,
+            fee: poolFee,
+            tickLower: TickMath.MIN_TICK,
+            tickUpper: TickMath.MAX_TICK,
+            amount0Desired: amt0ToAdd,
+            amount1Desired: amt1ToAdd,
+            amount0Min: 0,
+            amount1Min: 0,
+            recipient: address(this),
+            deadline: block.timestamp
+        });
+
+        // Note that the pool defined by token0/token1 and fee tier 0.3% must already be created and initialized in order to mint
+        (tokenId, liquidity, amount0, amount1) = nfPosMgr.mint(params);
+
+        _markDeposit(msg.sender, tokenId);
+
+        // Remove allowance and refund in both assets.
+        if (amount0 < amt0ToAdd) {
+            TransferHelperB.safeApprove(token0, address(nfPosMgr), 0);
+            uint256 refund0 = amt0ToAdd - amount0;
+            TransferHelperB.safeTransfer(token0, msg.sender, refund0);
+        }
+
+        if (amount1 < amt1ToAdd) {
+            TransferHelperB.safeApprove(token1, address(nfPosMgr), 0);
+            uint256 refund1 = amt1ToAdd - amount1;
+            TransferHelperB.safeTransfer(token1, msg.sender, refund1);
         }
     }
 
-    /**
-     * https://info.uniswap.org/#/
-     */
-    function mintPool(
-        address poolAddr,
-        address recipient,
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 amount,
-        bytes calldata data
-    ) external returns (uint256 amount0, uint256 amount1) {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        (amount0, amount1) = pool.mint(recipient, tickLower, tickUpper, amount, data);
+    /// @return amount0 The amount of fees collected in token0
+    /// @return amount1 The amount of fees collected in token1
+    function collectAllFees(uint256 tokenId) external returns (uint256 amount0, uint256 amount1) {
+        //The contract must hold the erc721 token before it can collect fees
+        // Caller must own the ERC721 position
+        // Call to safeTransfer will trigger `onERC721Received` which must return the selector else transfer will fail
+        nfPosMgr.safeTransferFrom(msg.sender, address(this), tokenId);
+
+        // set amount0Max and amount1Max to uint256.max to collect all fees. alternatively can set recipient to msg.sender and avoid another transaction in `sendToOwner`
+        INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
+            tokenId: tokenId,
+            recipient: address(this),
+            amount0Max: type(uint128).max,
+            amount1Max: type(uint128).max
+        });
+
+        (amount0, amount1) = nfPosMgr.collect(params);
+        _sendToOwner(tokenId, amount0, amount1);
     }
+
+    function _sendToOwner(uint256 tokenId, uint256 amount0, uint256 amount1) internal {
+        address _owner = nftDeposits[tokenId].owner;
+        address token0 = nftDeposits[tokenId].token0;
+        address token1 = nftDeposits[tokenId].token1;
+        TransferHelperB.safeTransfer(token0, _owner, amount0);
+        TransferHelperB.safeTransfer(token1, _owner, amount1);
+    }
+
+    function decreaseLiquidityCurrentRange(uint256 tokenId, uint128 percentage)
+        external
+        returns (uint256 amount0, uint256 amount1)
+    {
+        require(msg.sender == nftDeposits[tokenId].owner, "Not the owner");
+        require(percentage <= 100, "percentage");
+        uint128 liquidity = nftDeposits[tokenId].liquidity;
+        uint128 aLiquidity = liquidity * percentage / 100;
+
+        // amount0Min and amount1Min are price slippage checks
+        // if the amount received after burning is not greater than these minimums, transaction will fail
+        INonfungiblePositionManager.DecreaseLiquidityParams memory params = INonfungiblePositionManager
+            .DecreaseLiquidityParams({
+            tokenId: tokenId,
+            liquidity: aLiquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: block.timestamp
+        });
+
+        (amount0, amount1) = nfPosMgr.decreaseLiquidity(params);
+        _sendToOwner(tokenId, amount0, amount1);
+    }
+
+    //assumes the contract already has custody of the NFT.
+    //We cannot change the boundaries of a given liquidity position using the Uniswap v3 protocol; increaseLiquidity can only increase the liquidity of a position.
+    //amount0Min and amount1Min should be adjusted to create slippage protections.
+    function increaseLiquidityCurrentRange(uint256 amount0ToAdd, uint256 amount1ToAdd, uint256 tokenId)
+        external
+        returns (uint128 liquidity_, uint256 amount0, uint256 amount1)
+    {
+        pay(nftDeposits[tokenId].token0, msg.sender, address(this), amount0ToAdd);
+        pay(nftDeposits[tokenId].token1, msg.sender, address(this), amount1ToAdd);
+
+        TransferHelperB.safeApprove(nftDeposits[tokenId].token0, address(router), amount0ToAdd);
+        TransferHelperB.safeApprove(nftDeposits[tokenId].token1, address(router), amount1ToAdd);
+
+        INonfungiblePositionManager.IncreaseLiquidityParams memory params = INonfungiblePositionManager
+            .IncreaseLiquidityParams({
+            tokenId: tokenId,
+            amount0Desired: amount0ToAdd,
+            amount1Desired: amount1ToAdd,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: block.timestamp
+        });
+
+        (liquidity_, amount0, amount1) = nfPosMgr.increaseLiquidity(params);
+    }
+
+    /// @notice Transfers the NFT to the owner
+    /// @param tokenId The id of the erc721
+    function retrieveNFT(uint256 tokenId) external {
+        // must be the owner of the NFT
+        require(msg.sender == nftDeposits[tokenId].owner, "Not the owner");
+        // transfer ownership to original owner
+        nfPosMgr.safeTransferFrom(address(this), msg.sender, tokenId);
+        //remove information related to tokenId
+        delete nftDeposits[tokenId];
+    }
+    //------------------==
+    /// https://info.uniswap.org/#/
 
     //see IUniswapV3MintCallback.sol
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
         //TODO must pay the pool tokens owed for the minted liquidity. The caller of this method must be checked to be a UniswapV3Pool deployed by the canonical UniswapV3Factory.
-    }
-
-    function collectPool(
-        address poolAddr,
-        address recipient,
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 amount0Requested,
-        uint128 amount1Requested
-    ) external returns (uint256 amount0, uint256 amount1) {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        (amount0, amount1) = pool.collect(recipient, tickLower, tickUpper, amount0Requested, amount1Requested);
-    }
-
-    function burnPool(address poolAddr, int24 tickLower, int24 tickUpper, uint128 amount)
-        external
-        returns (uint256 amount0, uint256 amount1)
-    {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        (amount0, amount1) = pool.burn(tickLower, tickUpper, amount);
-    }
-
-    function swapPool(
-        address poolAddr,
-        address recipient,
-        bool zeroForOne,
-        int256 amountSpecified,
-        uint160 sqrtPriceLimitX96,
-        bytes calldata data
-    ) external returns (int256 amount0, int256 amount1) {
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddr);
-        (amount0, amount1) = pool.swap(recipient, zeroForOne, amountSpecified, sqrtPriceLimitX96, data);
     }
 
     //see IUniswapV3SwapCallback.sol
@@ -280,4 +363,29 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB {
     }
 
     //receive() external payable {} //already included in PeripheryPayments.sol
+}
+
+contract DeployBytecode {
+    event Deploy(address);
+
+    receive() external payable {}
+
+    function deployBytecode(bytes memory _code) external payable returns (address addr) {
+        assembly {
+            // make(v, p, n)
+            // v = amount of ETH to send
+            // p = pointer in memory to start of code. We need to tell Solidity where the start of the code is. The first 32 bytes encodes the lenghth of the code. So we need to skip the first 32 bytes(32 in decimal is 0x20 in hexidecimal)
+            // n = size of code, which is stored in the first 32 bytes of _code... use mload(_code)
+            addr := create(callvalue(), add(_code, 0x20), mload(_code))
+        }
+        // return address 0 on error
+        require(addr != address(0), "deploy failed");
+
+        emit Deploy(addr);
+    }
+
+    function execute(address _target, bytes memory _data) external payable {
+        (bool success,) = _target.call{value: msg.value}(_data);
+        require(success, "failed");
+    }
 }
