@@ -19,7 +19,7 @@ import "forge-std/console.sol";
  */
 contract DeployedCtrtAddrs {
     function getAddrs(uint8 network) public view returns (address[] memory arr) {
-        arr = new address[](12);
+        arr = new address[](13);
         if (network == 1) {
             console.log("network", network, " Goerli");
             arr[0] = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6;
@@ -37,7 +37,8 @@ contract DeployedCtrtAddrs {
             arr[9] = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
             arr[10] = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
             arr[11] = payable(0x72a452eC001265AD711C60fe27F71e2Cd0ADCC39);
-            //Goerli
+            arr[12] = 0xC256eF6D602787316B978afc65D55DE2f0B2b414; //GLDC
+                //Goerli
         } else if (network == 2) {
             console.log("network", network, " Sepolia");
         } else if (network == 5) {
@@ -55,8 +56,8 @@ contract DeployedCtrtAddrs {
             arr[8] = 0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6;
             arr[9] = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
             arr[10] = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
-
             arr[11] = payable(address(0));
+            arr[12] = address(0);
         } else {
             console.log("invalid network!");
         }

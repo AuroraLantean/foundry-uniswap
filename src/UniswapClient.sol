@@ -28,6 +28,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 //import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import "@uniswap/v3-periphery/contracts/base/LiquidityManagement.sol";
+import "forge-std/console.sol";
 
 contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Receiver {
     using LowGasSafeMathB for uint256;
@@ -78,19 +79,28 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
         lastNftDepositId = tokenId;
     }
 
+    event OOOOOO(uint256 a, uint256 b, uint256 c);
     // tokenId The id of the newly minted ERC721, liquidity The amount of liquidity for the position, amount0 The amount of token0, amount1 The amount of token1
+
     function mintNewPosition(address token0, address token1, uint24 poolFee, uint256 amt0ToAdd, uint256 amt1ToAdd)
         external
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
     {
+        console.log("mintNewPosition");
         TransferHelperB.safeTransferFrom(token0, msg.sender, address(this), amt0ToAdd);
+        emit OOOOOO(101, 0, 0);
+        console.log("mintNewPosition_1");
         TransferHelperB.safeTransferFrom(token1, msg.sender, address(this), amt1ToAdd);
+        console.log("mintNewPosition_2");
+        emit OOOOOO(101, 0, 0);
 
         //For given pool: token0/token1 = token0/token1
         // Approve the position manager
         TransferHelperB.safeApprove(token0, address(nfPosMgr), amt0ToAdd);
+        console.log("mintNewPosition_3");
         TransferHelperB.safeApprove(token1, address(nfPosMgr), amt1ToAdd);
-
+        console.log("mintNewPosition_4");
+        emit OOOOOO(104, 0, 0);
         // int24 private constant MIN_TICK = -887272;
         // int24 private constant MAX_TICK = -MIN_TICK;
         // int24 private constant TICK_SPACING = 60;
@@ -107,24 +117,33 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
             recipient: address(this),
             deadline: block.timestamp
         });
+        console.log("mintNewPosition_5");
+        emit OOOOOO(105, 0, 0);
 
         // Note that the pool defined by token0/token1 and fee tier 0.3% must already be created and initialized in order to mint
         (tokenId, liquidity, amount0, amount1) = nfPosMgr.mint(params);
+        console.log("mintNewPosition_6");
+        emit OOOOOO(106, 0, 0);
 
         _markDeposit(msg.sender, tokenId);
+        console.log("mintNewPosition_7");
 
         // Remove allowance and refund in both assets.
         if (amount0 < amt0ToAdd) {
             TransferHelperB.safeApprove(token0, address(nfPosMgr), 0);
+            console.log("mintNewPosition_8");
             uint256 refund0 = amt0ToAdd - amount0;
             TransferHelperB.safeTransfer(token0, msg.sender, refund0);
         }
+        console.log("mintNewPosition_9");
 
         if (amount1 < amt1ToAdd) {
             TransferHelperB.safeApprove(token1, address(nfPosMgr), 0);
+            console.log("mintNewPosition_10");
             uint256 refund1 = amt1ToAdd - amount1;
             TransferHelperB.safeTransfer(token1, msg.sender, refund1);
         }
+        console.log("mintNewPosition_end");
     }
 
     /// @return amount0 The amount of fees collected in token0
@@ -233,17 +252,16 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
     struct FlashParams {
         address token0;
         address token1;
-        uint24 fee1;
+        uint24 poolFee; //pool loan fee
         uint256 amount0;
         uint256 amount1;
-        uint24 fee2;
-        uint24 fee3;
+        uint24 fee10; //fee for token1 -> token0
+        uint24 fee01; //fee for token0 -> token1
     }
 
     function flashPool(FlashParams memory params) external {
-        // poolKey looks like {token0: token0, token1: token1, fee: fee}
         PoolAddress.PoolKey memory poolKey =
-            PoolAddress.PoolKey({token0: params.token0, token1: params.token1, fee: params.fee1});
+            PoolAddress.PoolKey({token0: params.token0, token1: params.token1, fee: params.poolFee});
         IUniswapV3Pool pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, poolKey));
 
         // require(allowanceToken(params.token0) >= params.amount0, "not enough amount0");
@@ -259,8 +277,8 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
                     amount1: params.amount1,
                     payer: msg.sender,
                     poolKey: poolKey,
-                    poolFee2: params.fee2,
-                    poolFee3: params.fee3
+                    fee10: params.fee10,
+                    fee01: params.fee01
                 })
             )
         );
@@ -271,33 +289,30 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
         uint256 amount1;
         address payer;
         PoolAddress.PoolKey poolKey;
-        uint24 poolFee2;
-        uint24 poolFee3;
+        uint24 fee10;
+        uint24 fee01;
     }
     //required by IUniswapV3FlashCallback
 
     function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external override {
         //here we should have received tokens from the pool
         FlashCallbackData memory decoded = abi.decode(data, (FlashCallbackData));
-        CallbackValidation.verifyCallback(factory, decoded.poolKey);
-        address token0 = decoded.poolKey.token0;
-        address token1 = decoded.poolKey.token1;
-        //for security reasons, use verifycallback instead of the following:
-        //address pool = uniswapV3Factory.getPool(token0, token1, _fee);
-        //require(msg.sender == address(pool), "Only Callback");
+        CallbackValidation.verifyCallback(factory, decoded.poolKey); //require(msg.sender == address(pool), "Only Callback");
+        address tok0 = decoded.poolKey.token0;
+        address tok1 = decoded.poolKey.token1;
 
-        //this client to approve
-        TransferHelperB.safeApprove(token0, address(router), decoded.amount0);
-        TransferHelperB.safeApprove(token1, address(router), decoded.amount1);
+        //router approves this client to use the fund
+        TransferHelperB.safeApprove(tok0, address(router), decoded.amount0);
+        TransferHelperB.safeApprove(tok1, address(router), decoded.amount1);
 
-        uint256 amount1Owed = LowGasSafeMathB.add(decoded.amount1, fee1); //also minimum amount1 to borrow
-        uint256 amount0Owed = LowGasSafeMathB.add(decoded.amount0, fee0); //also minimum amount0 to borrow
+        uint256 amount1Owed = LowGasSafeMathB.add(decoded.amount1, fee1); //minimum amount1
+        uint256 amount0Owed = LowGasSafeMathB.add(decoded.amount0, fee0); //minimum amount0
 
         uint256 amountOut0 = router.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
-                tokenIn: token1,
-                tokenOut: token0,
-                fee: decoded.poolFee2,
+                tokenIn: tok1,
+                tokenOut: tok0,
+                fee: decoded.fee10,
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: decoded.amount1,
@@ -308,9 +323,9 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
 
         uint256 amountOut1 = router.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
-                tokenIn: token0,
-                tokenOut: token1,
-                fee: decoded.poolFee3,
+                tokenIn: tok0,
+                tokenOut: tok1,
+                fee: decoded.fee01,
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: decoded.amount0,
@@ -319,22 +334,22 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
             })
         );
 
-        //TransferHelperB.safeApprove(token0, address(this), amount0Owed);
-        //TransferHelperB.safeApprove(token1, address(this), amount1Owed);
+        //TransferHelperB.safeApprove(tok0, address(this), amount0Owed);
+        //TransferHelperB.safeApprove(tok1, address(this), amount1Owed);
 
-        if (amount0Owed > 0) pay(token0, address(this), msg.sender, amount0Owed);
-        if (amount1Owed > 0) pay(token1, address(this), msg.sender, amount1Owed);
+        if (amount0Owed > 0) pay(tok0, address(this), msg.sender, amount0Owed);
+        if (amount1Owed > 0) pay(tok1, address(this), msg.sender, amount1Owed);
 
         if (amountOut0 > amount0Owed) {
             uint256 profit0 = LowGasSafeMathB.sub(amountOut0, amount0Owed);
-
-            TransferHelperB.safeApprove(token0, address(this), profit0);
-            pay(token0, address(this), decoded.payer, profit0);
+            //router to approve this client to grab the profit
+            TransferHelperB.safeApprove(tok0, address(this), profit0);
+            pay(tok0, address(this), decoded.payer, profit0);
         }
         if (amountOut1 > amount1Owed) {
             uint256 profit1 = LowGasSafeMathB.sub(amountOut1, amount1Owed);
-            TransferHelperB.safeApprove(token0, address(this), profit1);
-            pay(token1, address(this), decoded.payer, profit1);
+            TransferHelperB.safeApprove(tok0, address(this), profit1);
+            pay(tok1, address(this), decoded.payer, profit1);
         }
     }
 

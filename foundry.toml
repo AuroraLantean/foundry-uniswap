@@ -4,7 +4,7 @@ out = "out"
 libs = ["lib"]
 #UniswapV3 hardhat.config.ts/DEFAULT_CONPILER_SETTINGS
 solc = "0.7.6"
-evm_version = "istanbul"
+#evm_version = "istanbul"
 optimizer = true
 optimizer_runs = 1_000_000
 bytecode_hash = "none"

@@ -57,10 +57,10 @@ contract CounterScript is Script {
 
     //default function to run in scripts
     function run() public {
-        url = vm.rpcUrl("optimism");
-        console.log("url:", url);
-        url = vm.rpcUrl("arbitrum");
-        console.log("url:", url);
+        //url = vm.rpcUrl("optimism");
+        //console.log("url:", url);
+        //url = vm.rpcUrl("arbitrum");
+        //console.log("url:", url);
 
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.rememberKey(privateKey);

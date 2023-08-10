@@ -25,13 +25,14 @@
     "pricesqrt": "node encodePriceSqrt.js",
     "main": "forge test --fork-url $MAINNET_RPC_URL --match-path test/ClientMain.t.sol -vvv",
     "goerli": "forge test --fork-url $GOERLI_RPC_URL --match-path test/ClientGoerli.t.sol -vvv",
+    "main1": "forge test --fork-url $MAINNET_RPC_URL --match-path test/ClientGoerli.t.sol -vvv",
     "deploy_goerli": "forge script script/Counter.s.sol:CounterScript --fork-url $GOERLI_RPC_URL --broadcast --verify -vvvv",
     "deploy_anvil": "forge script script/Counter.s.sol:CounterScript --fork-url $ANVIL_RPC --broadcast -vvvv",
     "getCount": "cast call $CONTRACT_ADDRESS 'getCount()(uint256)'",
     "setCount": "cast send $CONTRACT_ADDRESS 'setCount(uint256)' 327 --private-key $PRIVATE_KEY"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "3.4.2-solc-0.7",
+    "@openzeppelin/contracts": "3.4.1-solc-0.7-2",
     "@uniswap/lib": "4.0.1-alpha",
     "base64-sol": "^1.0.1",
     "bignumber.js": "^9.1.1",
