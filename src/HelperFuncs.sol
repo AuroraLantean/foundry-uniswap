@@ -31,6 +31,7 @@ contract HelperFuncs {
 
     string tok0name;
     string tok1name;
+    string str;
     WETH weth;
     ERC20DP6 usdt;
     ERC20DP6 usdc;
@@ -84,11 +85,11 @@ contract HelperFuncs {
     address poolUsdcWeth500Addr;
     address poolDaiUsdc100Addr;
 
-    function deployPool(address token0r, address token1r, uint24 _poolFee, uint160 _sqrtPriceX96, string memory str)
+    function deployPool(address token0r, address token1r, uint24 _poolFee, uint160 _sqrtPriceX96, string memory _str)
         internal
         returns (address poolAddr_)
     {
-        console.log("--------== deployPool() of ", str, poolFee);
+        console.log("--------== deployPool() of ", _str, poolFee);
         lg("token0:", token0r);
         lg("token1:", token1r);
         console.log("poolFee:", _poolFee, ", sqrtPriceX96:", _sqrtPriceX96);
@@ -116,12 +117,12 @@ contract HelperFuncs {
         return IUniswapV3Pool(PoolAddress.computeAddress(factoryAddr, PoolAddress.getPoolKey(_tokenA, _tokenB, _fee)));
     }
 
-    function showPool(address _poolAddr, string memory str)
+    function showPool(address _poolAddr, string memory _str)
         internal
         returns (uint24 poolFee_, uint128 liquidity_, int24 tickSpacing_, uint128 maxLiquidityPerTick_)
     {
         lg("--------== showPool(): pool =", _poolAddr);
-        lg(str);
+        lg(_str);
         UniswapV3Pool pl = UniswapV3Pool(_poolAddr);
         address factoryAddrM = pl.factory();
         token0AddrM = pl.token0();
@@ -140,7 +141,7 @@ contract HelperFuncs {
         console.log("maxLiquidityPerTick_:", maxLiquidityPerTick_);
     }
 
-    function showPoolSlot0(address _poolAddr, string memory str)
+    function showPoolSlot0(address _poolAddr, string memory _str)
         internal
         view
         returns (
@@ -154,7 +155,7 @@ contract HelperFuncs {
         )
     {
         lg("--------== showPoolSlot0(): pool =", _poolAddr);
-        lg(str);
+        lg(_str);
         UniswapV3Pool pl = UniswapV3Pool(_poolAddr);
         (
             sqrtPriceX96_,
@@ -174,11 +175,6 @@ contract HelperFuncs {
         console.log("feeProtocol_:", feeProtocol_);
         lg("reentrance unlocked_:", unlocked_);
     }
-    // interface IERC20B is IERC20 {
-    //     function decimals() external view returns (uint256);
-    //     function name() external view returns (uint256);
-    //     function decimals() external view returns (uint256);
-    // }
 
     //sqrtPriceLimitX96 = 0
     function getPrice(address _poolAddr, bool _isToken0input, uint256 _amtInWei, uint160 _sqrtPriceLimitX96)
@@ -196,7 +192,7 @@ contract HelperFuncs {
     }
 
     function showERC20WethBalc(
-        ERC20 tokA,
+        address tokenA_r,
         WETH _weth,
         address addr,
         string memory nameTokA,
@@ -204,6 +200,8 @@ contract HelperFuncs {
         string memory nameAddr
     ) internal view {
         console.log("----== showERC20WethBalc on ", nameAddr);
+        IERC20Meta tokA = IERC20Meta(tokenA_r);
+        //IERC20Meta tokB = IERC20Meta(tokenB_r);
         uint256 balcA = tokA.balanceOf(addr);
         uint8 decA = tokA.decimals();
         console.log(nameTokA, balcA / (10 ** decA), balcA);
@@ -216,14 +214,16 @@ contract HelperFuncs {
     }
 
     function showERC20Balc(
-        ERC20 tokA,
-        ERC20 tokB,
+        address tokenA_r,
+        address tokenB_r,
         address addr,
         string memory nameTokA,
         string memory nameTokB,
         string memory nameAddr
     ) internal view {
         console.log("----== showERC20Balc on ", nameAddr);
+        IERC20Meta tokA = IERC20Meta(tokenA_r);
+        IERC20Meta tokB = IERC20Meta(tokenB_r);
         uint256 balcA = tokA.balanceOf(addr);
         uint8 decA = tokA.decimals();
         console.log(nameTokA, balcA / (10 ** decA), balcA);
@@ -235,24 +235,24 @@ contract HelperFuncs {
         lg("");
     }
 
-    function lg(string memory str) internal view {
-        console.log(str);
+    function lg(string memory _str) internal view {
+        console.log(_str);
     }
 
-    function lg(string memory str, address addr) internal view {
-        console.log(str, addr);
+    function lg(string memory _str, address addr) internal view {
+        console.log(_str, addr);
     }
 
-    function lg(string memory str, bool b) internal view {
-        console.log(str, b);
+    function lg(string memory _str, bool b) internal view {
+        console.log(_str, b);
     }
 
-    function lg(string memory str, uint8 u8) internal view {
-        console.log(str, u8);
+    function lg(string memory _str, uint8 u8) internal view {
+        console.log(_str, u8);
     }
 
-    function lg(string memory str, uint256 u256) internal view {
-        console.log(str, u256);
+    function lg(string memory _str, uint256 u256) internal view {
+        console.log(_str, u256);
     }
 
     receive() external payable {

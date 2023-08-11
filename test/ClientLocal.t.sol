@@ -24,7 +24,7 @@ contract UniswapClientTest is Test, HelperFuncs {
 
     address payable clientAddr;
     UniswapClient client;
-    uint8 network = 0;
+    uint8 network = 0; //1 Main, 5 Goerli, 111 Sepolia
 
     function setUp() external {
         lg("------------== Setup()");
@@ -32,6 +32,7 @@ contract UniswapClientTest is Test, HelperFuncs {
         address signer = vm.envAddress("SIGNER");
         lg("fox1:", fox1);
         assertEq(fox1, signer, "fox1 not signer");
+        lg("balcETH(this)", address(this).balance);
         deal(alice, 1000 ether);
         deal(bob, 1000 ether);
         vm.warp(1689392786); //in JS: new Date().getTime()/1000
@@ -132,7 +133,7 @@ contract UniswapClientTest is Test, HelperFuncs {
         //assertEq(uint256(tickM), uint256(), "e004");
 
         lg("--------== deploy UniswapClient");
-        client = new UniswapClient(factoryAddr, wethAddr, routerAddr, quoterAddr, nfPosMgrAddr);
+        client = new UniswapClient(factoryAddr, wethAddr, routerAddr, nfPosMgrAddr);
         clientAddr = address(client);
         //client.approveToken(approvalAmount, routerAddr);
 
@@ -145,14 +146,14 @@ contract UniswapClientTest is Test, HelperFuncs {
         token0Addr = usdcAddr; //Goerli
         token1Addr = wethAddr; //Goerli
         token0 = usdc;
-        token1 = ERC20Token(address(weth));
+        //token1 = ERC20Token(address(weth));
         tok0name = "USDC";
         tok1name = "WETH";
         amt0ToMint = 1000e18; // USDC
         amt1ToMint = 1000e18; // WETH
         poolFee = 500;
 
-        showERC20Balc(token0, token1, clientAddr, tok0name, tok1name, "client");
+        showERC20Balc(token0Addr, token1Addr, clientAddr, tok0name, tok1name, "client");
 
         if (token0Addr == address(0) || token1Addr == address(0)) console.log("token0Addr or token1Addr is zero");
         if (token0Addr >= token1Addr) {
@@ -177,7 +178,7 @@ contract UniswapClientTest is Test, HelperFuncs {
         console.log("liquidity:", liquidityM);
         lg("token0Addr:", token0AddrM);
         lg("token1Addr:", token1Addr);
-        showERC20Balc(token0, token1, clientAddr, tok0name, tok1name, "client");
+        showERC20Balc(token0Addr, token1Addr, clientAddr, tok0name, tok1name, "client");
 
         //MintParams, mint,increaseLiquidity, decreaseLiquidity, IncreaseLiquidityParams, DecreaseLiquidityParams, CollectParams, collect
 

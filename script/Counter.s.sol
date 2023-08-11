@@ -70,7 +70,7 @@ contract CounterScript is Script {
         console.log("whichCtrt:", whichCtrt);
         if (whichCtrt == 0) {
             console.log("deploy UniswapClient");
-            new UniswapClient(factoryAddr, weth9Addr, routerAddr, quoterAddr, nfPosMgrAddr);
+            new UniswapClient(factoryAddr, weth9Addr, routerAddr, nfPosMgrAddr);
         } else if (whichCtrt == 1) {
             console.log("deploy ERC20");
             new ERC20Token("GoldCoin", "GOLC");

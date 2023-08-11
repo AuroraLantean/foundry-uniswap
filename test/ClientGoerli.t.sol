@@ -22,7 +22,7 @@ contract UniswapClientTest is Test, HelperFuncs {
     address payable clientAddr;
     UniswapClient client;
 
-    uint8 network = 1;
+    uint8 network = 5;
 
     function setUp() external {
         lg("------------== Setup()");
@@ -135,7 +135,6 @@ contract UniswapClientTest is Test, HelperFuncs {
         if (network == 1) {
             token0Addr = gldcAddr; //Goerli
             token1Addr = wethAddr; //Goerli
-            token0 = gldc;
             tok0name = "GLDC";
             tok1name = "WETH";
             amt0ToMint = 1000e18; // GLDC
@@ -146,7 +145,7 @@ contract UniswapClientTest is Test, HelperFuncs {
         }
         console.log("checkpoint 1");
         deal(address(token0Addr), fox1, amt0ToMint);
-        assertEq(token0.balanceOf(fox1), amt0ToMint, "e001");
+        assertEq(IERC20(token0Addr).balanceOf(fox1), amt0ToMint, "e001");
 
         IUniswapV3Pool poolc = getPool(token0Addr, token1Addr, poolFee);
         lg("poolAddrCalc", address(poolc));
@@ -159,9 +158,9 @@ contract UniswapClientTest is Test, HelperFuncs {
         deal(address(wethAddr), fox1, amt1ToMint);
         lg("balcWeth(fox1):", weth.balanceOf(fox1));
 
-        showERC20WethBalc(token0, weth, fox1, tok0name, tok1name, "fox1");
+        showERC20WethBalc(token0Addr, weth, fox1, tok0name, tok1name, "fox1");
 
-        showERC20WethBalc(token0, weth, clientAddr, tok0name, tok1name, "client");
+        showERC20WethBalc(token0Addr, weth, clientAddr, tok0name, tok1name, "client");
         console.log("checkpoint 2");
 
         vm.startPrank(fox1);
@@ -190,7 +189,7 @@ contract UniswapClientTest is Test, HelperFuncs {
         console.log("liquidity:", liquidityM);
         lg("token0Addr:", token0AddrM);
         lg("token1Addr:", token1Addr);
-        showERC20WethBalc(token0, weth, clientAddr, tok0name, tok1name, "client");
+        showERC20WethBalc(token0Addr, weth, clientAddr, tok0name, tok1name, "client");
 
         //MintParams, mint,increaseLiquidity, decreaseLiquidity, IncreaseLiquidityParams, DecreaseLiquidityParams, CollectParams, collect
 
@@ -205,7 +204,7 @@ contract UniswapClientTest is Test, HelperFuncs {
 
     function test_3_DuelSwap() private {
         lg("------------== test_3_DuelSwap");
-        if (network != 1) revert("invalid network");
+        if (network != 5) revert("invalid network");
 
         token0Addr = usdcAddr;
         token1Addr = wethAddr;
@@ -214,11 +213,10 @@ contract UniswapClientTest is Test, HelperFuncs {
         uint256 amount1 = 1e18; // WETH
         uint24 fee10 = 3000;
         uint24 fee01 = 10000;
-        token0 = ERC20Token(token0Addr);
-        token1 = ERC20Token(address(token1Addr));
+
         deal(address(token0Addr), clientAddr, 1000e6);
         deal(address(token1Addr), clientAddr, 1000e18);
-        showERC20Balc(token0, token1, clientAddr, "USDC", "WETH", "Client");
+        showERC20Balc(token0Addr, token1Addr, clientAddr, "USDC", "WETH", "Client");
 
         console.log("checkpoint 1");
         UniswapClient.FlashParams memory params = UniswapClient.FlashParams({
@@ -234,7 +232,7 @@ contract UniswapClientTest is Test, HelperFuncs {
         client.flashPool(params);
         console.log("checkpoint 2");
 
-        showERC20Balc(token0, token1, clientAddr, "USDC", "WETH", "Client");
-        showERC20Balc(token0, token1, bob, "USDC", "WETH", "Client");
+        showERC20Balc(token0Addr, token1Addr, clientAddr, "USDC", "WETH", "Client");
+        showERC20Balc(token0Addr, token1Addr, bob, "USDC", "WETH", "Client");
     }
 }

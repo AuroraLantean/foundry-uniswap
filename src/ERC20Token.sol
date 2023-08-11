@@ -4,7 +4,6 @@ pragma solidity >=0.7.6;
 //import "solmate/tokens/ERC20.sol";
 //import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol"; //_mint, _burn
-
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
 //import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol"; //safeTransfer, safeTransferFrom, safeApprove, safeIncreaseAllowance, safeDecreaseAllowance
@@ -43,6 +42,18 @@ contract ERC20DP8 is ERC20Token {
     constructor(string memory name, string memory symbol) ERC20Token(name, symbol) {
         _setupDecimals(8);
     }
+}
+
+//import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+interface IERC20Meta is IERC20 {
+    function decimals() external view returns (uint8);
+    function name() external view returns (string memory);
+    function symbol() external view returns (string memory);
+}
+
+interface IWETH is IERC20Meta {
+    function deposit() external payable;
+    function withdraw(uint256) external;
 }
 
 interface IERC20Receiver {

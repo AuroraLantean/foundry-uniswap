@@ -18,16 +18,15 @@ import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.s
 
 import "@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol"; //getPoolKey, computeAddress
 import "@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol"; // verifyCallback
+import "@uniswap/v3-periphery/contracts/base/LiquidityManagement.sol";
 
+//import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import "src/TransferPayHelper.sol";
 import "src/LowGasSafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 //According to https://docs.uniswap.org/contracts/v3/guides/providing-liquidity/setting-up
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-//import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
-import "@uniswap/v3-periphery/contracts/base/LiquidityManagement.sol";
 import "forge-std/console.sol";
 
 contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Receiver {
@@ -35,13 +34,19 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
     using LowGasSafeMathB for int256;
 
     address payable owner;
-    IUniswapV3Factory public immutable uniswapV3Factory;
     ISwapRouter public immutable router;
-    IQuoter public immutable quoter;
+    //IUniswapV3Factory public immutable uniswapV3Factory;
+    //IQuoter public immutable quoter;
     INonfungiblePositionManager public immutable nfPosMgr;
 
+    //import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+    int24 constant MIN_TICK = -887272;
+    int24 constant MAX_TICK = -MIN_TICK;
+    int24 constant TICK_SPACING = 60;
+    address constant zero = address(0);
+
     struct DepositNFT {
-        address owner;
+        address sender;
         uint128 liquidity;
         address token0;
         address token1;
@@ -51,14 +56,18 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
     mapping(uint256 => DepositNFT) public nftDeposits;
 
     // msg.sender must approve this contract
-    constructor(address _factory, address _WETH9, address _routerAddr, address _quoterAddr, address _nfPosMgrAddr)
+    constructor(address _factory, address _WETH9, address _routerAddr, address _nfPosMgrAddr)
         PeripheryPaymentsB(_factory, _WETH9)
     {
+        require(
+            _factory != zero && _WETH9 != zero && _routerAddr != zero && _nfPosMgrAddr != zero,
+            "input addresses must not be zero"
+        );
         owner = payable(msg.sender);
-        uniswapV3Factory = IUniswapV3Factory(_factory);
-        quoter = IQuoter(_quoterAddr);
         router = ISwapRouter(_routerAddr);
         nfPosMgr = INonfungiblePositionManager(_nfPosMgrAddr);
+        //uniswapV3Factory = IUniswapV3Factory(_factory);
+        //quoter = IQuoter(_quoterAddr);
     }
 
     function onERC721Received(address operator, address, uint256 tokenId, bytes calldata)
@@ -71,11 +80,11 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
     }
 
     // https://docs.uniswap.org/contracts/v3/guides/providing-liquidity/setting-up
-    function _markDeposit(address _owner, uint256 tokenId) internal {
+    function _markDeposit(address _sender, uint256 tokenId) internal {
         (,, address token0, address token1,,,, uint128 liquidity,,,,) = nfPosMgr.positions(tokenId);
-        // set the owner and data for position
+        // set the sender and data for position
         // operator is msg.sender
-        nftDeposits[tokenId] = DepositNFT({owner: _owner, liquidity: liquidity, token0: token0, token1: token1});
+        nftDeposits[tokenId] = DepositNFT({sender: _sender, liquidity: liquidity, token0: token0, token1: token1});
         lastNftDepositId = tokenId;
     }
 
@@ -84,32 +93,27 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
 
     function mintNewPosition(address token0, address token1, uint24 poolFee, uint256 amt0ToAdd, uint256 amt1ToAdd)
         external
-        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+        returns (uint256 tokenId, uint128 liquidityDelta, uint256 amount0, uint256 amount1)
     {
         console.log("mintNewPosition");
+        // Transfer token0 and token1 from caller to here
         TransferHelperB.safeTransferFrom(token0, msg.sender, address(this), amt0ToAdd);
-        emit OOOOOO(101, 0, 0);
         console.log("mintNewPosition_1");
         TransferHelperB.safeTransferFrom(token1, msg.sender, address(this), amt1ToAdd);
         console.log("mintNewPosition_2");
-        emit OOOOOO(101, 0, 0);
 
-        //For given pool: token0/token1 = token0/token1
         // Approve the position manager
         TransferHelperB.safeApprove(token0, address(nfPosMgr), amt0ToAdd);
         console.log("mintNewPosition_3");
         TransferHelperB.safeApprove(token1, address(nfPosMgr), amt1ToAdd);
         console.log("mintNewPosition_4");
-        emit OOOOOO(104, 0, 0);
-        // int24 private constant MIN_TICK = -887272;
-        // int24 private constant MAX_TICK = -MIN_TICK;
-        // int24 private constant TICK_SPACING = 60;
+
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
             token0: token0,
             token1: token1,
             fee: poolFee,
-            tickLower: TickMath.MIN_TICK,
-            tickUpper: TickMath.MAX_TICK,
+            tickLower: (MIN_TICK / TICK_SPACING) * TICK_SPACING, //TickMath.MIN_TICK,
+            tickUpper: (MAX_TICK / TICK_SPACING) * TICK_SPACING, //TickMath.MAX_TICK,
             amount0Desired: amt0ToAdd,
             amount1Desired: amt1ToAdd,
             amount0Min: 0,
@@ -117,13 +121,10 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
             recipient: address(this),
             deadline: block.timestamp
         });
-        console.log("mintNewPosition_5");
-        emit OOOOOO(105, 0, 0);
 
         // Note that the pool defined by token0/token1 and fee tier 0.3% must already be created and initialized in order to mint
-        (tokenId, liquidity, amount0, amount1) = nfPosMgr.mint(params);
+        (tokenId, liquidityDelta, amount0, amount1) = nfPosMgr.mint(params);
         console.log("mintNewPosition_6");
-        emit OOOOOO(106, 0, 0);
 
         _markDeposit(msg.sender, tokenId);
         console.log("mintNewPosition_7");
@@ -152,7 +153,9 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
         //The contract must hold the erc721 token before it can collect fees
         // Caller must own the ERC721 position
         // Call to safeTransfer will trigger `onERC721Received` which must return the selector else transfer will fail
-        nfPosMgr.safeTransferFrom(msg.sender, address(this), tokenId);
+        console.log("collectAllFees1", address(this), msg.sender);
+        //nfPosMgr.approve(msg.sender, tokenId);
+        //nfPosMgr.safeTransferFrom(msg.sender, address(this), tokenId);
 
         // set amount0Max and amount1Max to uint256.max to collect all fees. alternatively can set recipient to msg.sender and avoid another transaction in `sendToOwner`
         INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
@@ -161,24 +164,25 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
             amount0Max: type(uint128).max,
             amount1Max: type(uint128).max
         });
-
+        console.log("collectAllFees3");
         (amount0, amount1) = nfPosMgr.collect(params);
-        _sendToOwner(tokenId, amount0, amount1);
+        console.log("collectAllFees4");
+        _sendToSender(tokenId, amount0, amount1);
     }
 
-    function _sendToOwner(uint256 tokenId, uint256 amount0, uint256 amount1) internal {
-        address _owner = nftDeposits[tokenId].owner;
+    function _sendToSender(uint256 tokenId, uint256 amount0, uint256 amount1) internal {
+        address _sender = nftDeposits[tokenId].sender;
         address token0 = nftDeposits[tokenId].token0;
         address token1 = nftDeposits[tokenId].token1;
-        TransferHelperB.safeTransfer(token0, _owner, amount0);
-        TransferHelperB.safeTransfer(token1, _owner, amount1);
+        TransferHelperB.safeTransfer(token0, _sender, amount0);
+        TransferHelperB.safeTransfer(token1, _sender, amount1);
     }
 
     function decreaseLiquidityCurrentRange(uint256 tokenId, uint128 percentage)
         external
         returns (uint256 amount0, uint256 amount1)
     {
-        require(msg.sender == nftDeposits[tokenId].owner, "Not the owner");
+        require(msg.sender == nftDeposits[tokenId].sender, "Not the sender");
         require(percentage <= 100, "percentage");
         uint128 liquidity = nftDeposits[tokenId].liquidity;
         uint128 aLiquidity = liquidity * percentage / 100;
@@ -195,7 +199,7 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
         });
 
         (amount0, amount1) = nfPosMgr.decreaseLiquidity(params);
-        _sendToOwner(tokenId, amount0, amount1);
+        _sendToSender(tokenId, amount0, amount1);
     }
 
     //assumes the contract already has custody of the NFT.
@@ -205,12 +209,13 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
         external
         returns (uint128 liquidity_, uint256 amount0, uint256 amount1)
     {
+        console.log("increaseLiquidity");
         pay(nftDeposits[tokenId].token0, msg.sender, address(this), amount0ToAdd);
         pay(nftDeposits[tokenId].token1, msg.sender, address(this), amount1ToAdd);
-
+        console.log("increaseLiquidity1");
         TransferHelperB.safeApprove(nftDeposits[tokenId].token0, address(router), amount0ToAdd);
         TransferHelperB.safeApprove(nftDeposits[tokenId].token1, address(router), amount1ToAdd);
-
+        console.log("increaseLiquidity2");
         INonfungiblePositionManager.IncreaseLiquidityParams memory params = INonfungiblePositionManager
             .IncreaseLiquidityParams({
             tokenId: tokenId,
@@ -220,16 +225,16 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
             amount1Min: 0,
             deadline: block.timestamp
         });
-
+        console.log("increaseLiquidity3");
         (liquidity_, amount0, amount1) = nfPosMgr.increaseLiquidity(params);
     }
 
-    /// @notice Transfers the NFT to the owner
+    /// @notice Transfers the NFT to the sender
     /// @param tokenId The id of the erc721
     function retrieveNFT(uint256 tokenId) external {
-        // must be the owner of the NFT
-        require(msg.sender == nftDeposits[tokenId].owner, "Not the owner");
-        // transfer ownership to original owner
+        // must be the sender of the NFT
+        require(msg.sender == nftDeposits[tokenId].sender, "Not the sender");
+        // transfer ownership to original sender
         nfPosMgr.safeTransferFrom(address(this), msg.sender, tokenId);
         //remove information related to tokenId
         delete nftDeposits[tokenId];
@@ -259,6 +264,7 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
         uint24 fee01; //fee for token0 -> token1
     }
 
+    //https://solidity-by-example.org/defi/uniswap-v3-flash/
     function flashPool(FlashParams memory params) external {
         PoolAddress.PoolKey memory poolKey =
             PoolAddress.PoolKey({token0: params.token0, token1: params.token1, fee: params.poolFee});
@@ -294,6 +300,7 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
     }
     //required by IUniswapV3FlashCallback
 
+    //https://solidity-by-example.org/defi/uniswap-v3-flash-swap/
     function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external override {
         //here we should have received tokens from the pool
         FlashCallbackData memory decoded = abi.decode(data, (FlashCallbackData));
@@ -351,6 +358,23 @@ contract UniswapClient is IUniswapV3FlashCallback, PeripheryPaymentsB, IERC721Re
             TransferHelperB.safeApprove(tok0, address(this), profit1);
             pay(tok1, address(this), decoded.payer, profit1);
         }
+    }
+
+    function swapExactInputMultiHop(bytes calldata path, address tokenIn, uint256 amountIn)
+        external
+        returns (uint256 amountOut)
+    {
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        IERC20(tokenIn).approve(address(router), amountIn);
+
+        ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
+            path: path,
+            recipient: msg.sender,
+            deadline: block.timestamp,
+            amountIn: amountIn,
+            amountOutMinimum: 0
+        });
+        amountOut = router.exactInput(params);
     }
 
     //----------------------==
